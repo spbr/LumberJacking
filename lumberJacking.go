@@ -32,6 +32,7 @@ const (
 type ServerConfig struct {
 	LogHome string
 	Port    string
+    LogLevelMax int
 }
 
 // logger configuration
@@ -61,11 +62,11 @@ type logger struct {
 /*
 ** Global vars
  */
-var logLevelMax = 100
-var gLoggers = make(map[string]*logger, logLevelMax)
+var gLoggers map[string]*logger
 
 var wg sync.WaitGroup
 var configFile string
+var serverConfig ServerConfig
 
 // initialization function
 func init() {
@@ -90,14 +91,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	var config ServerConfig
-	err = json.Unmarshal(file, &config)
+	err = json.Unmarshal(file, &serverConfig)
 	if err != nil {
 		fmt.Printf("%v", err)
 		os.Exit(1)
 	}
+    gLoggers = make(map[string]*logger, serverConfig.LogLevelMax)
 
-	Init(config.LogHome, 2000, 2, 20000)
+	Init(serverConfig.LogHome, 2000, 2, 20000)
 
 	/*
 	 ** Let's start the server
@@ -108,8 +109,8 @@ func main() {
 		fmt.Fprintf(w, Log(req, w, "info"))
 	}).Methods("POST")
 
-	log.Println("Starting server on 127.0.0.1:" + config.Port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:" + config.Port, router))
+	log.Println("Starting server on 127.0.0.1:" + serverConfig.Port)
+	log.Fatal(http.ListenAndServe("127.0.0.1:" + serverConfig.Port, router))
 }
 
 /*func test() {
@@ -298,7 +299,7 @@ func FindOrCreateLogEntry(logname string) error {
 	if _, ok := gLoggers[logname]; ok {
 		return nil
 	}
-	if len(gLoggers) == logLevelMax {
+	if len(gLoggers) == serverConfig.LogLevelMax {
 		return errors.New("Maximum Log Entries created")
 	} else {
 		newLogger := logger{logname: logname}
