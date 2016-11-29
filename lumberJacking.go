@@ -14,57 +14,24 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
 	"errors"
+	"github.com/gorilla/mux"
 )
 
 // consts
 const (
-	maxInt64 = int64(^uint64(0) >> 1)
+	maxInt64          = int64(^uint64(0) >> 1)
 	logCreatedTimeLen = 21
 	logFilenameMinLen = 36
 )
 
-// Config holds the server configuration values
-type ServerConfig struct {
-	LogHome string
-	Port    string
-    LogLevelMax int
-}
-
-// logger configuration
-type config struct {
-	logPath     string
-	pathPrefix  string
-	logflags    uint32
-	maxfiles    int   // limit the number of log files under `logPath`
-	curfiles    int   // number of files under `logPath` currently
-	nfilesToDel int   // number of files deleted when reaching the limit of the number of log files
-	maxsize     int64 // limit size of a log file
-	purgeLock   sync.Mutex
-}
-
-// logger
-type logger struct {
-	file    *os.File
-	tag     string
-	logname string
-	year    int
-	day     int
-	month   int
-	hour    int
-	size    int64
-	lock    sync.Mutex
-}
 /*
 ** Global vars
  */
-var gLoggers map[string]*logger
+var gLoggers map[string]*Logger
 
-var wg sync.WaitGroup
 var configFile string
 var serverConfig ServerConfig
 
@@ -96,7 +63,7 @@ func main() {
 		fmt.Printf("%v", err)
 		os.Exit(1)
 	}
-    gLoggers = make(map[string]*logger, serverConfig.LogLevelMax)
+	gLoggers = make(map[string]*Logger, serverConfig.MaxLogs)
 
 	Init(serverConfig.LogHome, 2000, 2, 20000)
 
@@ -110,7 +77,7 @@ func main() {
 	}).Methods("POST")
 
 	log.Println("Starting server on 127.0.0.1:" + serverConfig.Port)
-	log.Fatal(http.ListenAndServe("127.0.0.1:" + serverConfig.Port, router))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+serverConfig.Port, router))
 }
 
 /*func test() {
@@ -156,7 +123,7 @@ func Init(logpath string, maxfiles, nfilesToDel int, maxsize uint32) error {
 	return nil
 }
 
-func (conf *config) setFlags(flag uint32, on bool) {
+func (conf *LogConfig) setFlags(flag uint32, on bool) {
 	if on {
 		conf.logflags = conf.logflags | flag
 	} else {
@@ -164,7 +131,7 @@ func (conf *config) setFlags(flag uint32, on bool) {
 	}
 }
 
-func (conf *config) setMaxSize(maxsize uint32) {
+func (conf *LogConfig) setMaxSize(maxsize uint32) {
 	if maxsize > 0 {
 		conf.maxsize = int64(maxsize) * 1024 * 1024
 	} else {
@@ -172,82 +139,16 @@ func (conf *config) setMaxSize(maxsize uint32) {
 	}
 }
 
-func (conf *config) setLogPath(logpath string) {
+func (conf *LogConfig) setLogPath(logpath string) {
 	conf.logPath = logpath + "/"
 	conf.pathPrefix = conf.logPath
 
-}
-
-func (l *logger) log(t *time.Time, data string) {
-	mins := getMinuteBlock(t.Minute())
-	tag := fmt.Sprintf("%04d%02d%02d%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), mins)
-	l.lock.Lock()
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "localhost"
-	}
-	defer l.lock.Unlock()
-	if l.tag == "" || l.tag != tag || l.file == nil {
-		gConf.purgeLock.Lock()
-		hasLocked := true
-		defer func() {
-			if hasLocked {
-				gConf.purgeLock.Unlock()
-			}
-		}()
-		// reaches limit of number of log files
-		filename := fmt.Sprintf("%s%s.%s.log.%04d-%02d-%02d-%02d-%02d", gConf.pathPrefix, l.logname,
-			hostname, t.Year(), t.Month(), t.Day(), t.Hour(), mins)
-		newfile, err := os.OpenFile(filename, os.O_CREATE | os.O_WRONLY | os.O_APPEND, 0644)
-		if err != nil {
-			log.Printf("Error opening log file: %s - %s", filename, err)
-			return
-		}
-		gConf.curfiles++
-		gConf.purgeLock.Unlock()
-		hasLocked = false
-
-		l.file.Close()
-		l.file = newfile
-		l.tag = tag
-		l.size = 0
-
-	}
-
-	n, _ := l.file.WriteString(data)
-	l.size += int64(n)
 }
 
 func getMinuteBlock(minutes int) int {
 	return (minutes / 15) * 15
 }
 
-// sort files by created time embedded in the filename
-type byCreatedTime []string
-
-func (a byCreatedTime) Len() int {
-	return len(a)
-}
-
-func (a byCreatedTime) Less(i, j int) bool {
-	s1, s2 := a[i], a[j]
-	if len(s1) < logFilenameMinLen {
-		return true
-	} else if len(s2) < logFilenameMinLen {
-		return false
-	} else {
-		return s1[len(s1) - logCreatedTimeLen:] < s2[len(s2) - logCreatedTimeLen:]
-	}
-}
-
-func (a byCreatedTime) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
-// init is called after all the variable declarations in the package have evaluated their initializers,
-// and those are evaluated only after all the imported packages have been initialized.
-// Besides initializations that cannot be expressed as declarations, a common use of init functions is to verify
-// or repair correctness of the program state before real execution begins.
 func init() {
 	gConf.setLogPath("./log")
 }
@@ -287,7 +188,7 @@ func TWLog(logname string, logMessage string) {
 
 var gProgname = path.Base(os.Args[0])
 
-var gConf = config{
+var gConf = LogConfig{
 	maxfiles:    400,
 	nfilesToDel: 10,
 	maxsize:     100 * 1024 * 1024,
@@ -299,10 +200,10 @@ func FindOrCreateLogEntry(logname string) error {
 	if _, ok := gLoggers[logname]; ok {
 		return nil
 	}
-	if len(gLoggers) == serverConfig.LogLevelMax {
+	if len(gLoggers) == serverConfig.MaxLogs {
 		return errors.New("Maximum Log Entries created")
 	} else {
-		newLogger := logger{logname: logname}
+		newLogger := Logger{logname: logname}
 		gLoggers[logname] = &newLogger
 		return nil
 	}
