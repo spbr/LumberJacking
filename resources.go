@@ -44,8 +44,13 @@ func Log(req *http.Request, writer http.ResponseWriter, logName string) string {
 			response.Set("result", "error")
 			response.Set("message", err.Error())
 		} else {
-			TWLog(vars["logname"], logReq.Message)
-			response.Set("result", "ok")
+			err = TWLog(vars["logname"], logReq.Message)
+			if err != nil {
+				response.Set("result", "error")
+				response.Set("message", err.Error())
+			} else {
+				response.Set("result", "ok")
+			}
 		}
 	} else {
 		response.Set("result", "error")

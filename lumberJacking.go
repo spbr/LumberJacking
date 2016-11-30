@@ -139,11 +139,12 @@ func genLogPrefix(t *time.Time, logname string) string {
 	return prefix
 }
 
-func TWLog(logname string, logMessage string) {
+func TWLog(logname string, logMessage string) error {
 	t := time.Now()
 	prefix := genLogPrefix(&t, logname)
 	logEntry := fmt.Sprintf("%s%s\n", prefix, logMessage)
-	gLoggers[logname].log(&t, logEntry)
+	err := gLoggers[logname].log(&t, logEntry)
+	return err
 }
 
 var gProgname = path.Base(os.Args[0])

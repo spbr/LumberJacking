@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 	"sync"
+	"errors"
 )
 
 
@@ -21,7 +22,7 @@ type Logger struct {
 	lock    sync.Mutex
 }
 
-func (l *Logger) log(t *time.Time, data string) {
+func (l *Logger) log(t *time.Time, data string) error {
 	mins := getMinuteBlock(&gConf, t.Minute())
 	tag := fmt.Sprintf("%04d%02d%02d%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), mins)
 	l.lock.Lock()
@@ -38,13 +39,12 @@ func (l *Logger) log(t *time.Time, data string) {
 				gConf.purgeLock.Unlock()
 			}
 		}()
-		// reaches limit of number of log files
 		filename := fmt.Sprintf("%s%s.%s.log.%04d-%02d-%02d-%02d-%02d", gConf.pathPrefix, l.logname,
 			hostname, t.Year(), t.Month(), t.Day(), t.Hour(), mins)
 		newfile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			log.Printf("Error opening log file: %s - %s", filename, err)
-			return
+			return err
 		}
 		gConf.purgeLock.Unlock()
 		hasLocked = false
@@ -55,5 +55,9 @@ func (l *Logger) log(t *time.Time, data string) {
 
 	}
 
-	l.file.WriteString(data)
+	written, err := l.file.WriteString(data)
+	if written != len(data) {
+		return errors.New("Unable to write full data")
+	}
+	return err
 }
