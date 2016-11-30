@@ -20,13 +20,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// consts
-const (
-	maxInt64          = int64(^uint64(0) >> 1)
-	logCreatedTimeLen = 21
-	logFilenameMinLen = 36
-)
-
 /*
 ** Global vars
  */
@@ -54,18 +47,22 @@ func main() {
 	}
 	file, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		fmt.Printf("%v", err)
+		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
 
 	err = json.Unmarshal(file, &serverConfig)
 	if err != nil {
-		fmt.Printf("%v", err)
+		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
 	gLoggers = make(map[string]*Logger, serverConfig.MaxLogs)
 
-	Init(serverConfig.LogHome, 2000, 2, 20000)
+	err = Init(serverConfig.LogHome, serverConfig.MaxMinutes)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
 
 	/*
 	 ** Let's start the server
@@ -94,81 +91,44 @@ func main() {
 } */
 
 // Init must be called first, to create the logging server
-func Init(logpath string, maxfiles, nfilesToDel int, maxsize uint32) error {
+func Init(logpath string, maxMinutes int) error {
 	err := os.MkdirAll(logpath, 0755)
 	if err != nil {
 		return err
 	}
 
-	if maxfiles <= 0 || maxfiles > 100000 {
-		return fmt.Errorf("maxfiles must be greater than 0 and less than or equal to 100000: %d", maxfiles)
-	}
-
-	if nfilesToDel <= 0 || nfilesToDel > maxfiles {
-		return fmt.Errorf("nfilesToDel must be greater than 0 and less than or equal to maxfiles! toDel=%d maxfiles=%d",
-			nfilesToDel, maxfiles)
-	}
-
-	// get names form the directory `logpath`
-	files, err := getDirnames(logpath)
+	gConf.setLogPath(logpath)
+	err = gConf.setMaxMinutes(maxMinutes)
 	if err != nil {
 		return err
 	}
-
-	gConf.setLogPath(logpath)
-	gConf.maxfiles = maxfiles
-	gConf.curfiles = calcLogfileNum(files)
-	gConf.nfilesToDel = nfilesToDel
-	gConf.setMaxSize(maxsize)
 	return nil
-}
-
-func (conf *LogConfig) setFlags(flag uint32, on bool) {
-	if on {
-		conf.logflags = conf.logflags | flag
-	} else {
-		conf.logflags = conf.logflags & ^flag
-	}
-}
-
-func (conf *LogConfig) setMaxSize(maxsize uint32) {
-	if maxsize > 0 {
-		conf.maxsize = int64(maxsize) * 1024 * 1024
-	} else {
-		conf.maxsize = maxInt64 - (1024 * 1024 * 1024 * 1024 * 1024)
-	}
 }
 
 func (conf *LogConfig) setLogPath(logpath string) {
 	conf.logPath = logpath + "/"
 	conf.pathPrefix = conf.logPath
-
+}
+func (conf *LogConfig) setMaxMinutes(maxMinutes int) error {
+	if maxMinutes == 0 {
+		return errors.New("max minutes cannot be set to zero")
+	}
+	if maxMinutes > 60 {
+		return errors.New("max minutes cannot be greater than zero")
+	}
+	if 60 % maxMinutes > 0 {
+		return errors.New("max minutes must be a divisor of 60")
+	}
+	conf.maxMinutes = maxMinutes
+	return nil
 }
 
-func getMinuteBlock(minutes int) int {
-	return (minutes / 15) * 15
+func getMinuteBlock(gConf *LogConfig, minutes int) int {
+	return (minutes / gConf.maxMinutes) * gConf.maxMinutes
 }
 
 func init() {
 	gConf.setLogPath("./log")
-}
-
-// helpers
-func getDirnames(dir string) ([]string, error) {
-	f, err := os.Open(dir)
-	if err == nil {
-		defer f.Close()
-		return f.Readdirnames(0)
-	}
-	return nil, err
-}
-
-func calcLogfileNum(files []string) int {
-	curfiles := 0
-	for _ = range files {
-		curfiles++
-	}
-	return curfiles
 }
 
 func genLogPrefix(t *time.Time, logname string) string {
@@ -189,9 +149,6 @@ func TWLog(logname string, logMessage string) {
 var gProgname = path.Base(os.Args[0])
 
 var gConf = LogConfig{
-	maxfiles:    400,
-	nfilesToDel: 10,
-	maxsize:     100 * 1024 * 1024,
 }
 
 // CheckForLogEntry checks to see if the log name exists, if so, nothing happens.  If not, a new logger is created.

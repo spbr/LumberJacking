@@ -18,12 +18,11 @@ type Logger struct {
 	day     int
 	month   int
 	hour    int
-	size    int64
 	lock    sync.Mutex
 }
 
 func (l *Logger) log(t *time.Time, data string) {
-	mins := getMinuteBlock(t.Minute())
+	mins := getMinuteBlock(&gConf, t.Minute())
 	tag := fmt.Sprintf("%04d%02d%02d%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), mins)
 	l.lock.Lock()
 	hostname, err := os.Hostname()
@@ -47,17 +46,14 @@ func (l *Logger) log(t *time.Time, data string) {
 			log.Printf("Error opening log file: %s - %s", filename, err)
 			return
 		}
-		gConf.curfiles++
 		gConf.purgeLock.Unlock()
 		hasLocked = false
 
 		l.file.Close()
 		l.file = newfile
 		l.tag = tag
-		l.size = 0
 
 	}
 
-	n, _ := l.file.WriteString(data)
-	l.size += int64(n)
+	l.file.WriteString(data)
 }
