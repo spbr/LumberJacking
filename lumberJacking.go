@@ -78,11 +78,12 @@ func main() {
 }
 
 /*func test() {
+	var wg sync.WaitGroup
 	tSaved := time.Now()
 	for i := 0; i != 200000; i++ {
 		wg.Add(1)
 		go func() {
-			Server("{\"hit\":{\"_index\":\"establishments\",\"_type\":\"establishment\",\"_id\":\"estab_2641\",\"_score\":null,\"_source\":{\"establishment_id\":2641,\"establishment_name\":\"Somtum Der\",\"neighborhood\":\"east village\",\"cuisines\":[],\"last_message_updated\":0,\"geo\":{\"lon\":-73.9843516,\"lat\":40.7252272}},\"sort\":[0,1658.1558661470444]}}")
+			TWLog("test", "{\"hit\"}");
 			wg.Add(-1)
 		}()
 	}
@@ -140,6 +141,9 @@ func genLogPrefix(t *time.Time, logname string) string {
 }
 
 func TWLog(logname string, logMessage string) error {
+	return twlog(gLoggers, logname, logMessage)
+}
+func twlog(gLoggers map[string]*Logger, logname string, logMessage string) error {
 	t := time.Now()
 	prefix := genLogPrefix(&t, logname)
 	logEntry := fmt.Sprintf("%s%s\n", prefix, logMessage)
