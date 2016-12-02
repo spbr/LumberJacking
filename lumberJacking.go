@@ -13,7 +13,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"time"
 
 	"errors"
@@ -24,6 +23,7 @@ import (
 ** Global vars
  */
 var gLoggers map[string]*Logger
+var gConf = LogConfig{}
 
 var configFile string
 var serverConfig ServerConfig
@@ -77,20 +77,6 @@ func main() {
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+serverConfig.Port, router))
 }
 
-/*func test() {
-	var wg sync.WaitGroup
-	tSaved := time.Now()
-	for i := 0; i != 200000; i++ {
-		wg.Add(1)
-		go func() {
-			TWLog("test", "{\"hit\"}");
-			wg.Add(-1)
-		}()
-	}
-	wg.Wait()
-	fmt.Println(time.Now().Sub(tSaved))
-} */
-
 // Init must be called first, to create the logging server
 func Init(logpath string, maxMinutes int) error {
 	err := os.MkdirAll(logpath, 0755)
@@ -106,28 +92,6 @@ func Init(logpath string, maxMinutes int) error {
 	return nil
 }
 
-func (conf *LogConfig) setLogPath(logpath string) {
-	conf.logPath = logpath + "/"
-	conf.pathPrefix = conf.logPath
-}
-func (conf *LogConfig) setMaxMinutes(maxMinutes int) error {
-	if maxMinutes == 0 {
-		return errors.New("max minutes cannot be set to zero")
-	}
-	if maxMinutes > 60 {
-		return errors.New("max minutes cannot be greater than zero")
-	}
-	if 60 % maxMinutes > 0 {
-		return errors.New("max minutes must be a divisor of 60")
-	}
-	conf.maxMinutes = maxMinutes
-	return nil
-}
-
-func getMinuteBlock(gConf *LogConfig, minutes int) int {
-	return (minutes / gConf.maxMinutes) * gConf.maxMinutes
-}
-
 func init() {
 	gConf.setLogPath("./log")
 }
@@ -140,20 +104,15 @@ func genLogPrefix(t *time.Time, logname string) string {
 	return prefix
 }
 
-func TWLog(logname string, logMessage string) error {
-	return twlog(gLoggers, logname, logMessage)
+func SPiBLog(logname string, logMessage string) error {
+	return WriteLog(gLoggers, logname, logMessage)
 }
-func twlog(gLoggers map[string]*Logger, logname string, logMessage string) error {
+func WriteLog(gLoggers map[string]*Logger, logname string, logMessage string) error {
 	t := time.Now()
 	prefix := genLogPrefix(&t, logname)
 	logEntry := fmt.Sprintf("%s%s\n", prefix, logMessage)
 	err := gLoggers[logname].log(&t, logEntry)
 	return err
-}
-
-var gProgname = path.Base(os.Args[0])
-
-var gConf = LogConfig{
 }
 
 // CheckForLogEntry checks to see if the log name exists, if so, nothing happens.  If not, a new logger is created.

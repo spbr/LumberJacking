@@ -66,7 +66,7 @@ func TestLog(t *testing.T) {
 	newLogger := Logger{logname: "test"}
 	tgLoggers["test"] = &newLogger
 
-	err = twlog(tgLoggers, "test", "{\"test\": 1}")
+	err = WriteLog(tgLoggers, "test", "{\"test\": 1}")
 	if err != nil {
 		t.Error("Didn't expect error ", err)
 	}
@@ -121,7 +121,7 @@ func TestPerf(t *testing.T) {
 	for i := 0; i != 200000; i++ {
 		wg.Add(1)
 		go func() {
-			err = twlog(tgLoggers, "test", "{\"test\": 1}")
+			err = WriteLog(tgLoggers, "test", "{\"test\": 1}")
 			if err != nil {
 				t.Error("Didn't expect error ", err)
 			}

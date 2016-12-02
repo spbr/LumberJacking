@@ -23,7 +23,7 @@ type Logger struct {
 }
 
 func (l *Logger) log(t *time.Time, data string) error {
-	mins := getMinuteBlock(&gConf, t.Minute())
+	mins := gConf.getMinuteBlock(t.Minute())
 	tag := fmt.Sprintf("%04d%02d%02d%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), mins)
 	l.lock.Lock()
 	hostname, err := os.Hostname()

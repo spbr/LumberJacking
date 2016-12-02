@@ -44,7 +44,7 @@ func Log(req *http.Request, writer http.ResponseWriter, logName string) string {
 			response.Set("result", "error")
 			response.Set("message", err.Error())
 		} else {
-			err = TWLog(vars["logname"], logReq.Message)
+			err = SPiBLog(vars["logname"], logReq.Message)
 			if err != nil {
 				response.Set("result", "error")
 				response.Set("message", err.Error())
