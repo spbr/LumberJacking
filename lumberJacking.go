@@ -1,8 +1,6 @@
-/* Author: Shane P. Brady
-
-LumberJacking is a network based logging facility which provides a dynamic range of log files
-
-*/
+/** Author: Shane P. Brady
+ **    LumberJacking is a network based logging facility which provides a dynamic range of log files
+ */
 package main
 
 import (
@@ -24,12 +22,14 @@ import (
  */
 var gLoggers map[string]*Logger
 var gConf = LogConfig{}
-
+var gStats = Stats{}
 var configFile string
 var serverConfig ServerConfig
 
 // initialization function
 func init() {
+	gConf.setLogPath("./log")
+	gStats.Init()
 	flag.StringVar(&configFile, "config", "", "config file")
 }
 
@@ -72,6 +72,9 @@ func main() {
 	router.HandleFunc("/log/{logname}", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, Log(req, w, "info"))
 	}).Methods("POST")
+	router.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprintf(w, FetchStats(req, w))
+	}).Methods("GET")
 
 	log.Println("Starting server on 127.0.0.1:" + serverConfig.Port)
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+serverConfig.Port, router))
@@ -92,10 +95,6 @@ func Init(logpath string, maxMinutes int) error {
 	return nil
 }
 
-func init() {
-	gConf.setLogPath("./log")
-}
-
 func genLogPrefix(t *time.Time, logname string) string {
 	layout := "%04d-%02d-%02d %02d:%02d:%02d - %s: "
 	myt := time.Now()
@@ -104,9 +103,11 @@ func genLogPrefix(t *time.Time, logname string) string {
 	return prefix
 }
 
+// SPiBLog writes out a log file using the global loggers structure
 func SPiBLog(logname string, logMessage string) error {
 	return WriteLog(gLoggers, logname, logMessage)
 }
+// WriteLog writs out the log entry, and takes a loggers array as an argument
 func WriteLog(gLoggers map[string]*Logger, logname string, logMessage string) error {
 	t := time.Now()
 	prefix := genLogPrefix(&t, logname)
@@ -115,7 +116,7 @@ func WriteLog(gLoggers map[string]*Logger, logname string, logMessage string) er
 	return err
 }
 
-// CheckForLogEntry checks to see if the log name exists, if so, nothing happens.  If not, a new logger is created.
+// FindOrCreateLogEntry checks to see if the log name exists, if so, nothing happens.  If not, a new logger is created.
 // If there are too many log entries, an error is returned
 func FindOrCreateLogEntry(logname string) error {
 	if _, ok := gLoggers[logname]; ok {
@@ -123,9 +124,8 @@ func FindOrCreateLogEntry(logname string) error {
 	}
 	if len(gLoggers) == serverConfig.MaxLogs {
 		return errors.New("Maximum Log Entries created")
-	} else {
-		newLogger := Logger{logname: logname}
-		gLoggers[logname] = &newLogger
-		return nil
 	}
+	newLogger := Logger{logname: logname}
+	gLoggers[logname] = &newLogger
+	return nil
 }
