@@ -37,7 +37,7 @@ type LogRequest struct {
 var SystemReturnError = "\"result\": \"error\", \"message\": \"Fatal System Error\""
 
 // Log takes the log request and logs it to the correct service
-func Log(req *http.Request, writer http.ResponseWriter, logName string) string {
+func Log(req *http.Request, writer http.ResponseWriter) string {
 
 	gStats.IncRequests()
 	bodytext, err := ioutil.ReadAll(req.Body)

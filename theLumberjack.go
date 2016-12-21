@@ -85,7 +85,7 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/log/{logname}", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(w, Log(req, w, "info"))
+		fmt.Fprintf(w, Log(req, w))
 	}).Methods("POST")
 	router.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, FetchStats(req, w))
